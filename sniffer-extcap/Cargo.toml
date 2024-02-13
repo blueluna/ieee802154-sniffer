@@ -1,0 +1,16 @@
+[package]
+name = "ieee802154-sniffer-extcap"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Erik Bånvik <erik.public@gmail.com>" ]
+license = "MIT"
+
+[dependencies]
+byteorder = "1.5"
+r-extcap = "0.2.3"
+pcap-file = "2.0.0"
+serialport = "4.3.0"
+clap = { version = "4.5.0", features = ["derive"] }
+lazy_static = "1.4.0"
+ieee802154-sniffer-wire-format = { path = "../wire-format", features = ["std"] }
+signal-hook = "0.3"

@@ -1,0 +1,8 @@
+[package]
+name = "esp-fw"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Erik Bånvik <erik.public@gmail.com>" ]
+license = "MIT"
+
+[dependencies]

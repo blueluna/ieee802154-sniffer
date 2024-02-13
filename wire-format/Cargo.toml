@@ -1,0 +1,16 @@
+[package]
+name = "ieee802154-sniffer-wire-format"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Erik Bånvik <erik.public@gmail.com>" ]
+license = "MIT"
+
+[dependencies]
+postcard = { workspace = true }
+serde = { workspace = true }
+heapless = { workspace = true }
+defmt = {  version = "0.3", optional = true }
+
+[features]
+std = ["postcard/alloc"]
+defmt = ["dep:defmt", "postcard/use-defmt"]
