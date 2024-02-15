@@ -1,6 +1,10 @@
 # IEEE 802.15.4 Sniffer
 
-A work in progress IEEE 802.15.4 sniffer. 
+A work in progress IEEE 802.15.4 sniffer.
+
+## ESP32-C6 firmware
+
+A firmware for the ESP32-C6 can be found in `esp-fw`.
 
 ## micro:bit v2 firmware
 
