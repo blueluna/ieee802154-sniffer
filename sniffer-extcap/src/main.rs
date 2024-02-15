@@ -44,7 +44,7 @@ static DLT: Dlt = Dlt {
 
 lazy_static! {
     static ref METADATA: Metadata = Metadata {
-        help_url: "https://github.com/blueluna/ieee-802.15.4-sniffer".into(),
+        help_url: "https://github.com/blueluna/ieee802154-sniffer".into(),
         display_description: "IEEE 802.15.4 Sniffer".into(),
         ..r_extcap::cargo_metadata!()
     };
@@ -273,6 +273,22 @@ fn main() {
                                     u32::from(channel),
                                 ); // channel
                                 tap_data_offset += 8;
+                                if let Some(rssi) = frame.received_signal_strength_indicator {
+                                    let rssi = (rssi as f32) / 1000.0f32;
+                                    LittleEndian::write_u16(
+                                        &mut tap_data[tap_data_offset..tap_data_offset + 2],
+                                        1,
+                                    ); // RSSI
+                                    LittleEndian::write_u16(
+                                        &mut tap_data[tap_data_offset + 2..tap_data_offset + 4],
+                                        4,
+                                    ); // length
+                                    LittleEndian::write_f32(
+                                        &mut tap_data[tap_data_offset + 4..tap_data_offset + 8],
+                                        rssi,
+                                    ); // RSSI
+                                    tap_data_offset += 8;
+                                }
                                 if let Some(lqi) = frame.link_quality_index {
                                     LittleEndian::write_u16(
                                         &mut tap_data[tap_data_offset..tap_data_offset + 2],

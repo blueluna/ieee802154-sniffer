@@ -9,11 +9,10 @@ use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, signal::Signal};
 use esp_backtrace as _;
 use esp_ieee802154;
-use hal::{clock::ClockControl, embassy, peripherals::{self, Peripherals}, prelude::*, timer::TimerGroup, uart, Uart};
+use hal::{clock::ClockControl, embassy, peripherals::{self, Peripherals}, prelude::*, timer::TimerGroup, uart, Uart, gpio};
 use ieee802154_sniffer_wire_format as wire_format;
 
 static CONTROL_CHANNEL: Channel<CriticalSectionRawMutex, wire_format::Packet, 1> = Channel::new();
-static FRAME_CHANNEL: Channel<CriticalSectionRawMutex, wire_format::Frame, 4> = Channel::new();
 static NEW_FRAME: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 #[embassy_executor::task]
@@ -34,8 +33,7 @@ async fn uart_reader(mut rx: uart::UartRx<'static, peripherals::UART0>) {
             let end_marker = buf.iter().position(|&b| b == 0x00);
             if let Some(pos) = end_marker {
                 match wire_format::Packet::decode(&mut buf[..pos]) {
-                    Ok((packet, remainder)) => {
-                        defmt::info!("URX: Received {}, {}", remainder.len(), packet);
+                    Ok((packet, _)) => {
                         CONTROL_CHANNEL.send(packet).await;
                     }
                     Err(_) => {
@@ -60,26 +58,13 @@ async fn uart_reader(mut rx: uart::UartRx<'static, peripherals::UART0>) {
     }
 }
 
-#[embassy_executor::task]
-async fn uart_writer(mut tx: uart::UartTx<'static, peripherals::UART0>) {
-    let mut utx_buffer = [0; 512];
-    loop {
-        let frame = FRAME_CHANNEL.receive().await;
-        let tx_packet = wire_format::Packet::CaptureFrame(frame);
-        let uart_data = defmt::unwrap!(tx_packet.encode(&mut utx_buffer));
-        defmt::unwrap!(embedded_io_async::Write::write_all(&mut tx, uart_data).await);
-        defmt::unwrap!(embedded_io_async::Write::flush(&mut tx).await);
-        defmt::info!("UTX: Sent {} {=[u8]:02x}", uart_data.len(), &uart_data);
-    }
-}
-
 fn receive_available()
 {
     NEW_FRAME.signal(());
 }
 
 #[embassy_executor::task]
-async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>) {
+async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>, mut tx: uart::UartTx<'static, peripherals::UART0>) {
     let mut configuration = esp_ieee802154::Config {
         channel: 11,
         promiscuous: true,
@@ -89,6 +74,7 @@ async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>) {
         ..esp_ieee802154::Config::default()
     };
     let mut capture_enable = false;
+    let mut utx_buffer = [0; 512];
     loop {
         match select(NEW_FRAME.wait(), CONTROL_CHANNEL.receive()).await {
             Either::First(_) => {
@@ -97,12 +83,13 @@ async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>) {
                     let rssi = received.data[size] as i8;
                     let part = &received.data[1..(size - 1)];
                     let lqi = esp_ieee802154::rssi_to_lqi(rssi);
-                    defmt::info!("Radio Received {=[u8]:02x}\n", part);
 
                     if capture_enable {
                         let payload = defmt::unwrap!(wire_format::Payload::from_slice(part));
-                        let frame = wire_format::Frame { payload, link_quality_index: Some(lqi) };
-                        FRAME_CHANNEL.send(frame).await;
+                        let frame = wire_format::Frame { payload, received_signal_strength_indicator: Some(i32::from(rssi) * 1_000), link_quality_index: Some(lqi) };
+                        let tx_packet = wire_format::Packet::CaptureFrame(frame);
+                        let uart_data = defmt::unwrap!(tx_packet.encode(&mut utx_buffer));
+                        defmt::unwrap!(embedded_io_async::Write::write_all(&mut tx, uart_data).await);
                     }
                 }
             }
@@ -143,7 +130,9 @@ async fn main(spawner: Spawner) {
 
     embassy::init(&clocks, timer_group0);
 
-    let mut uart0 = Uart::new(peripherals.UART0, &clocks);
+    let uart_config = uart::config::Config { baudrate: 250_000, ..uart::config::Config::default() };
+    type Pins<'a> = uart::TxRxPins<'a, gpio::GpioPin<gpio::Output<gpio::PushPull>, 2>, gpio::GpioPin<gpio::Input<gpio::Floating>, 0>>;
+    let mut uart0 = Uart::new_with_config(peripherals.UART0, uart_config, None::<Pins<'_>>, &clocks);
     uart0
         .set_rx_fifo_full_threshold(64)
         .unwrap();
@@ -151,6 +140,5 @@ async fn main(spawner: Spawner) {
     let (tx, rx) = uart0.split();
 
     defmt::unwrap!(spawner.spawn(uart_reader(rx)));
-    defmt::unwrap!(spawner.spawn(uart_writer(tx)));
-    defmt::unwrap!(spawner.spawn(radio_receive(ieee802154)));
+    defmt::unwrap!(spawner.spawn(radio_receive(ieee802154, tx)));
 }

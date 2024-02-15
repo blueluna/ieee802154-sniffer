@@ -1,6 +1,7 @@
 use crate::Error;
 use ieee802154_sniffer_wire_format as wire_format;
 use std::time::Duration;
+use std::io::{BufReader, BufRead};
 
 pub(crate) struct DeviceSerial {
     port: Box<dyn serialport::SerialPort>,
@@ -10,8 +11,8 @@ pub(crate) struct DeviceSerial {
 
 impl DeviceSerial {
     pub(crate) fn open(name: &str) -> Result<Self, serialport::Error> {
-        let mut port = serialport::new(name, 115_200)
-            .timeout(Duration::from_millis(100))
+        let mut port = serialport::new(name, 250_000)
+            .timeout(Duration::from_millis(1))
             .open()?;
         let _ = port.clear(serialport::ClearBuffer::All);
         loop {
@@ -37,50 +38,36 @@ impl DeviceSerial {
         Ok(())
     }
 
-    fn read_packet(&mut self) -> Result<Option<wire_format::Packet>, Error> {
+    fn read(&mut self) -> Result<(), Error> {
         let bytes = self.port.read(&mut self.read_buffer[self.read_offset..])?;
         self.read_offset += bytes;
-        let part = &self.read_buffer[..self.read_offset];
-        let mut frame_len = 0;
-        for n in 0..part.len() {
-            let b = self.read_buffer[n];
-            if b == 0 {
-                frame_len = n + 1;
-                break;
+        Ok(())
+    }
+
+    fn read_packet(&mut self) -> Result<Option<wire_format::Packet>, Error> {
+        let mut work_buffer = [0u8; 4096];
+        let end_marker = self.read_buffer[..self.read_offset].iter().position(|&b| b == 0x00);
+        let end_marker = if end_marker == None {
+            self.read()?;
+            self.read_buffer[..self.read_offset].iter().position(|&b| b == 0x00)
+        } else { end_marker };
+        let frame_len = if let Some(end) = end_marker {
+            end + 1
+        } else { return Ok(None); };
+        work_buffer[..frame_len].copy_from_slice(&self.read_buffer[..frame_len]);
+        let work_frame = &mut work_buffer[..frame_len];
+        let result = match wire_format::Packet::decode(work_frame) {
+            Ok((packet, _)) => {
+                Ok(Some(packet))
             }
-        }
-        // println!("Receive {} {} {:02X?}", frame_len, self.read_offset, &self.read_buffer[..self.read_offset]);
-        if frame_len > 0 {
-            let mut work_buffer = [0u8; 4096];
-            work_buffer[..frame_len].copy_from_slice(&self.read_buffer[..frame_len]);
-            let original_frame = &self.read_buffer[..frame_len];
-            let work_frame = &mut work_buffer[..frame_len];
-            // println!("Frame {:02X?}", original_frame);
-            match wire_format::Packet::decode(work_frame) {
-                Ok((packet, remainder)) => {
-                    let used = self.read_offset - remainder.len();
-                    self.read_buffer.copy_within(used..self.read_offset, 0);
-                    self.read_offset -= used;
-                    if (self.read_offset > 0) {
-                        println!(
-                            "Remaining {} {} {:02X?}",
-                            self.read_offset,
-                            used,
-                            &self.read_buffer[..self.read_offset]
-                        );
-                    }
-                    Ok(Some(packet))
-                }
-                Err(e) => {
-                    println!("Purge {}, {:02X?}", frame_len, original_frame);
-                    self.read_buffer.copy_within(frame_len..self.read_offset, 0);
-                    self.read_offset -= frame_len;
-                    Err(e.into())
-                }
+            Err(e) => {
+                println!("Purge {}, {:02X?}", frame_len, &self.read_buffer[..frame_len]);
+                Err(e.into())
             }
-        } else {
-            Ok(None)
-        }
+        };
+        self.read_buffer.copy_within(frame_len..self.read_offset, 0);
+        self.read_offset -= frame_len;
+        result
     }
 
     pub(crate) fn probe(&mut self) -> Result<(), Error> {

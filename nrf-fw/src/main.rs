@@ -59,7 +59,7 @@ async fn main(spawner: Spawner) {
 
     let mut uart_config = uarte::Config::default();
     uart_config.parity = uarte::Parity::EXCLUDED;
-    uart_config.baudrate = uarte::Baudrate::BAUD115200;
+    uart_config.baudrate = uarte::Baudrate::BAUD250000;
 
     let uart = uarte::Uarte::new(p.UARTE0, Irqs, p.P1_08, p.P0_06, uart_config);
     let (mut tx, rx) = uart.split();
@@ -78,15 +78,13 @@ async fn main(spawner: Spawner) {
                         Ok(()) => {
                             if capture_enable {
                                 let payload = defmt::unwrap!(wire_format::Payload::from_slice(&rx_packet));
-                                let frame = wire_format::Frame { payload, link_quality_index: Some(rx_packet.lqi()) };
+                                let frame = wire_format::Frame { payload, received_signal_strength_indicator: None, link_quality_index: Some(rx_packet.lqi()) };
                                 let tx_packet = wire_format::Packet::CaptureFrame(frame);
                                 let uart_data = defmt::unwrap!(tx_packet.encode(&mut utx_buffer));
                                 defmt::unwrap!(tx.write(uart_data).await);
                             }
                         }
-                        Err(crc) => {
-                            defmt::error!("Invalid CRC {=u16:04x}", crc);
-                        }
+                        Err(_crc) => (),
                     }
                 }
                 Either::Second(ref packet) => {

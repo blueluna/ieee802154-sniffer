@@ -35,6 +35,9 @@ pub type Payload = heapless::Vec<u8, 256>;
 #[derive(Clone, Deserialize, PartialEq, Serialize)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct Frame {
+    /// Received signal strength indicator (RSSI) in dBm / 1000
+    pub received_signal_strength_indicator: Option<i32>,
+    /// Link Quality Index (LQI)
     pub link_quality_index: Option<u8>,
     pub payload: Payload,
 }
@@ -113,6 +116,7 @@ mod tests {
             let payload = Payload::from_slice(&[0x02, 0x00, 0x04]).unwrap();
             let output = (&Packet::CaptureFrame(Frame {
                 payload,
+                received_signal_strength_indicator: None,
                 link_quality_index: None,
             }))
                 .encode(buffer)
@@ -148,6 +152,7 @@ mod tests {
             let payload = Payload::from_slice(&[0x02, 0x00, 0x04]).unwrap();
             let frame = Frame {
                 payload,
+                received_signal_strength_indicator: None,
                 link_quality_index: None,
             };
             assert_eq!(Packet::CaptureFrame(frame), packet);
