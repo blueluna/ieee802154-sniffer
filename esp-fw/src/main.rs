@@ -3,6 +3,7 @@
 #![feature(type_alias_impl_trait)]
 
 use defmt;
+use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, signal::Signal};

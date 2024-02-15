@@ -196,6 +196,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "defmt-rtt"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "609923761264dd99ed9c7d209718cda4631c5fe84668e0f0960124cbb844c49f"
+dependencies = [
+ "critical-section",
+ "defmt",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -387,6 +397,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c5c6f9166728f6cd08e5781899f4c94fd7ccf2efd04e5b2295f7cb2c92c83e8"
 dependencies = [
+ "defmt",
  "esp-println",
 ]
 
@@ -468,8 +479,6 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e090867a191aaaa0645f8a7f03c51ab57cee82e2adba5525940dc9ff1c07511"
 dependencies = [
- "critical-section",
- "defmt",
  "portable-atomic",
 ]
 
@@ -687,6 +696,7 @@ name = "ieee802154-sniffer-esp32-c6"
 version = "0.1.0"
 dependencies = [
  "defmt",
+ "defmt-rtt",
  "embassy-executor",
  "embassy-futures",
  "embassy-sync",

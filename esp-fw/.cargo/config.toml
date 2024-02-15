@@ -1,5 +1,5 @@
 [target.riscv32imac-unknown-none-elf]
-runner = "espflash flash --chip esp32c6 --monitor --log-format=defmt"
+runner = "probe-rs run --protocol jtag --probe 303a:1001 --chip esp32c6"
 
 [build]
 target = "riscv32imac-unknown-none-elf"

@@ -7,10 +7,11 @@ license = "MIT"
 
 [dependencies]
 hal = { package = "esp32c6-hal", version = "0.8", features = ["async", "embassy", "embassy-time-timg0", "embassy-executor-thread", "embedded-io", "defmt"] }
-esp-backtrace = { version = "0.11", features = ["esp32c6", "panic-handler", "exception-handler", "println"] }
+esp-backtrace = { version = "0.11", features = ["esp32c6", "panic-handler", "exception-handler", "defmt"] }
 esp-ieee802154 = { version = "0.1", features = ["esp32c6"] }
-esp-println = { version = "0.9", default-features = false, features = ["colors", "critical-section", "defmt-espflash", "esp32c6", "jtag-serial"] }
+esp-println = { version = "0.9", features = ["esp32c6", "jtag-serial"], default-features = false }
 defmt = "0.3"
+defmt-rtt = "0.4"
 embassy-executor = { version = "0.5.0", features = ["nightly"] }
 embassy-futures = "0.1.1"
 embassy-sync = { version = "0.5.0", features = ["defmt"] }
