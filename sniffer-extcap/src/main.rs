@@ -27,6 +27,8 @@ use r_extcap::{
 const NXP_VID: u16 = 0x0d28;
 const NXP_CMSIS_DAP_PID: u16 = 0x0204;
 
+const SILICON_LABS_VID: u16 = 0x10c4;
+const SILICON_LABS_UART_PID: u16 = 0xea60;
 #[derive(Debug, Parser)]
 pub struct AppArgs {
     #[command(flatten)]
@@ -153,8 +155,9 @@ fn main() {
                         serialport::SerialPortType::UsbPort(ref usb_port) => {
                             let probe = match (usb_port.vid, usb_port.pid) {
                                 (NXP_VID, NXP_CMSIS_DAP_PID) => true,
+                                (SILICON_LABS_VID, SILICON_LABS_UART_PID) => true,
                                 (_vid, _pid) => {
-                                    // println!("USB serial port {:04x}:{:04x}", _vid, _pid);
+                                    println!("USB serial port {:04x}:{:04x}", _vid, _pid);
                                     false
                                 }
                             };

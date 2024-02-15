@@ -1,8 +1,38 @@
 [package]
-name = "esp-fw"
+name = "ieee802154-sniffer-esp32-c6"
 version = "0.1.0"
+authors = ["Erik Bånvik <erik.public@gmail.com>"]
 edition = "2021"
-authors = [ "Erik Bånvik <erik.public@gmail.com>" ]
 license = "MIT"
 
 [dependencies]
+hal = { package = "esp32c6-hal", version = "0.8", features = ["async", "embassy", "embassy-time-timg0", "embassy-executor-thread", "embedded-io", "defmt"] }
+esp-backtrace = { version = "0.11", features = ["esp32c6", "panic-handler", "exception-handler", "println"] }
+esp-ieee802154 = { version = "0.1", features = ["esp32c6"] }
+esp-println = { version = "0.9", default-features = false, features = ["colors", "critical-section", "defmt-espflash", "esp32c6", "jtag-serial"] }
+defmt = "0.3"
+embassy-executor = { version = "0.5.0", features = ["nightly"] }
+embassy-futures = "0.1.1"
+embassy-sync = { version = "0.5.0", features = ["defmt"] }
+embedded-io-async = "0.6"
+ieee802154-sniffer-wire-format = { path = "../wire-format", features = ["defmt"] }
+
+[patch.crates-io]
+esp-ieee802154 = { git = "https://github.com/esp-rs/esp-ieee802154", rev = "bfe32f6d2e2251050011a4134ba82d6316cbfa95", package = "esp-ieee802154" }
+
+[profile.dev]
+codegen-units = 1
+debug = 2
+debug-assertions = true
+incremental = false
+opt-level = 2
+overflow-checks = true
+
+[profile.release]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 3
+overflow-checks = false

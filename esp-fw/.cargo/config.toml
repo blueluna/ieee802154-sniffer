@@ -1,0 +1,8 @@
+[target.riscv32imac-unknown-none-elf]
+runner = "espflash flash --chip esp32c6 --monitor --log-format=defmt"
+
+[build]
+target = "riscv32imac-unknown-none-elf"
+
+[env]
+DEFMT_LOG="info"

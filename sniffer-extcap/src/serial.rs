@@ -13,6 +13,7 @@ impl DeviceSerial {
         let mut port = serialport::new(name, 115_200)
             .timeout(Duration::from_millis(100))
             .open()?;
+        let _ = port.clear(serialport::ClearBuffer::All);
         loop {
             if let Ok(len) = port.read(&mut [0u8; 128]) {
                 if len == 0 {
@@ -48,15 +49,31 @@ impl DeviceSerial {
                 break;
             }
         }
+        // println!("Receive {} {} {:02X?}", frame_len, self.read_offset, &self.read_buffer[..self.read_offset]);
         if frame_len > 0 {
-            match wire_format::Packet::decode(&mut self.read_buffer[..frame_len]) {
+            let mut work_buffer = [0u8; 4096];
+            work_buffer[..frame_len].copy_from_slice(&self.read_buffer[..frame_len]);
+            let original_frame = &self.read_buffer[..frame_len];
+            let work_frame = &mut work_buffer[..frame_len];
+            // println!("Frame {:02X?}", original_frame);
+            match wire_format::Packet::decode(work_frame) {
                 Ok((packet, remainder)) => {
                     let used = self.read_offset - remainder.len();
                     self.read_buffer.copy_within(used..self.read_offset, 0);
                     self.read_offset -= used;
+                    if (self.read_offset > 0) {
+                        println!(
+                            "Remaining {} {} {:02X?}",
+                            self.read_offset,
+                            used,
+                            &self.read_buffer[..self.read_offset]
+                        );
+                    }
                     Ok(Some(packet))
                 }
                 Err(e) => {
+                    println!("Purge {}, {:02X?}", frame_len, original_frame);
+                    self.read_buffer.copy_within(frame_len..self.read_offset, 0);
                     self.read_offset -= frame_len;
                     Err(e.into())
                 }

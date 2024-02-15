@@ -33,7 +33,7 @@ async fn uart_reader(mut rx: uarte::UarteRx<'static, peripherals::UARTE0>) {
                 defmt::error!("URX: Failed to read UART, {}", _error);
             }
         }
-        if buf[offset - 1] == 0 {
+        if offset > 0 && buf[offset - 1] == 0 {
             match wire_format::Packet::decode(&mut buf[..offset]) {
                 Ok((packet, remainder)) => {
                     defmt::info!("URX: Received {}, {}", remainder.len(), packet);
@@ -50,9 +50,9 @@ async fn uart_reader(mut rx: uarte::UarteRx<'static, peripherals::UARTE0>) {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+
     let mut config = embassy_nrf::config::Config::default();
     config.hfclk_source = embassy_nrf::config::HfclkSource::ExternalXtal;
-
     let p = embassy_nrf::init(config);
 
     let mut radio = radio::ieee802154::Radio::new(p.RADIO, Irqs);
