@@ -103,7 +103,12 @@ async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>, mut tx: u
                         let _ = radio.transmit_raw(&[0x02, 0x00, 0x04]);
                     }
                     wire_format::Packet::Power(_) => (),
-                    wire_format::Packet::Probe(_magic) => {
+                    wire_format::Packet::Probe(magic) => {
+                        if magic == wire_format::PROBE_HOST {
+                            let tx_packet = wire_format::Packet::Probe(wire_format::PROBE_DEVICE);
+                            let uart_data = defmt::unwrap!(tx_packet.encode(&mut utx_buffer));
+                            defmt::unwrap!(embedded_io_async::Write::write_all(&mut tx, uart_data).await);
+                        }
                     },
                     wire_format::Packet::CaptureStart => {
                         defmt::info!("CTL: Start capture {}", configuration.channel);

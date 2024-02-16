@@ -9,8 +9,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use byteorder::{ByteOrder, LittleEndian};
 use clap::Parser;
@@ -160,20 +160,22 @@ fn main() -> Result<(), Error> {
                             let probe = match (usb_port.vid, usb_port.pid) {
                                 (NXP_VID, NXP_CMSIS_DAP_PID) => true,
                                 (SILICON_LABS_VID, SILICON_LABS_UART_PID) => true,
-                                (_vid, _pid) => {
-                                    println!("USB serial port {:04x}:{:04x}", _vid, _pid);
-                                    false
-                                }
+                                (_vid, _pid) => false,
                             };
                             if probe {
-                                /*
-                                if let Ok(mut channel) = serial::Channel::open(&port.port_name) {
-                                    if let Ok(()) = channel.probe() {
-                                        channels.push(port.port_name);
+                                if let Ok(mut channel) = serial::DeviceSerial::open(
+                                    &port.port_name,
+                                    std::time::Duration::from_millis(500),
+                                ) {
+                                    match channel.probe() {
+                                        Ok(()) => {
+                                            channels.push(port.port_name);
+                                        }
+                                        Err(e) => {
+                                            eprintln!("Probe failed, {:?}", e);
+                                        }
                                     }
                                 }
-                                */
-                                channels.push(port.port_name);
                             }
                         }
                         _ => (),
@@ -228,7 +230,9 @@ fn main() -> Result<(), Error> {
                 capture_step.interface.to_string()
             };
 
-            let mut device = serial::DeviceSerial::open(&serialport).expect("Failed to open port");
+            let mut device =
+                serial::DeviceSerial::open(&serialport, std::time::Duration::from_millis(1))
+                    .expect("Failed to open port");
 
             device.set_channel(channel).unwrap();
 

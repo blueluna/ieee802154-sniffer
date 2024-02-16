@@ -1,6 +1,5 @@
 use crate::Error;
 use ieee802154_sniffer_wire_format as wire_format;
-use std::time::Duration;
 
 pub(crate) struct DeviceSerial {
     port: Box<dyn serialport::SerialPort>,
@@ -9,10 +8,11 @@ pub(crate) struct DeviceSerial {
 }
 
 impl DeviceSerial {
-    pub(crate) fn open(name: &str) -> Result<Self, serialport::Error> {
-        let mut port = serialport::new(name, 250_000)
-            .timeout(Duration::from_millis(1))
-            .open()?;
+    pub(crate) fn open(
+        name: &str,
+        timeout: core::time::Duration,
+    ) -> Result<Self, serialport::Error> {
+        let mut port = serialport::new(name, 250_000).timeout(timeout).open()?;
         let _ = port.clear(serialport::ClearBuffer::All);
         loop {
             if let Ok(len) = port.read(&mut [0u8; 128]) {
@@ -45,22 +45,32 @@ impl DeviceSerial {
 
     fn read_packet(&mut self) -> Result<Option<wire_format::Packet>, Error> {
         let mut work_buffer = [0u8; 4096];
-        let end_marker = self.read_buffer[..self.read_offset].iter().position(|&b| b == 0x00);
+        let end_marker = self.read_buffer[..self.read_offset]
+            .iter()
+            .position(|&b| b == 0x00);
         let end_marker = if end_marker == None {
             self.read()?;
-            self.read_buffer[..self.read_offset].iter().position(|&b| b == 0x00)
-        } else { end_marker };
+            self.read_buffer[..self.read_offset]
+                .iter()
+                .position(|&b| b == 0x00)
+        } else {
+            end_marker
+        };
         let frame_len = if let Some(end) = end_marker {
             end + 1
-        } else { return Ok(None); };
+        } else {
+            return Ok(None);
+        };
         work_buffer[..frame_len].copy_from_slice(&self.read_buffer[..frame_len]);
         let work_frame = &mut work_buffer[..frame_len];
         let result = match wire_format::Packet::decode(work_frame) {
-            Ok((packet, _)) => {
-                Ok(Some(packet))
-            }
+            Ok((packet, _)) => Ok(Some(packet)),
             Err(e) => {
-                println!("Purge {}, {:02X?}", frame_len, &self.read_buffer[..frame_len]);
+                println!(
+                    "Purge {}, {:02X?}",
+                    frame_len,
+                    &self.read_buffer[..frame_len]
+                );
                 Err(e.into())
             }
         };
@@ -78,7 +88,7 @@ impl DeviceSerial {
                     wire_format::Packet::Probe(_value) => {
                         break;
                     }
-                    _ => (),
+                    _ => {}
                 }
             }
         }
