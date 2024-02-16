@@ -99,6 +99,8 @@ async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>, mut tx: u
                         configuration.channel = channel;
                         defmt::info!("CTL: Set channel {}", configuration.channel);
                         radio.set_config(configuration);
+                        // Hacky way to get the radio to actually change channel
+                        let _ = radio.transmit_raw(&[0x02, 0x00, 0x04]);
                     }
                     wire_format::Packet::Power(_) => (),
                     wire_format::Packet::Probe(_magic) => {
