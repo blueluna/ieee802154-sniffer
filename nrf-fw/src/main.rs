@@ -68,6 +68,7 @@ async fn main(spawner: Spawner) {
 
     let mut capture_enable = false;
     let mut utx_buffer = [0u8; 512];
+    let mut configured_channel = 11;
 
     loop {
         let mut rx_packet = radio::ieee802154::Packet::new();
@@ -78,7 +79,7 @@ async fn main(spawner: Spawner) {
                         Ok(()) => {
                             if capture_enable {
                                 let payload = defmt::unwrap!(wire_format::Payload::from_slice(&rx_packet));
-                                let frame = wire_format::Frame { payload, received_signal_strength_indicator: None, link_quality_index: Some(rx_packet.lqi()) };
+                                let frame = wire_format::Frame { payload, channel: configured_channel, received_signal_strength_indicator: None, link_quality_index: Some(rx_packet.lqi()) };
                                 let tx_packet = wire_format::Packet::CaptureFrame(frame);
                                 let uart_data = defmt::unwrap!(tx_packet.encode(&mut utx_buffer));
                                 defmt::unwrap!(tx.write(uart_data).await);
@@ -90,7 +91,7 @@ async fn main(spawner: Spawner) {
                 Either::Second(ref packet) => {
                     defmt::info!("RRX: Received {}", packet);
                     match packet {
-                        wire_format::Packet::Channel(channel) => { radio.set_channel(*channel); }
+                        wire_format::Packet::Channel(channel) => { configured_channel = *channel; radio.set_channel(*channel); }
                         wire_format::Packet::Power(_power) => (),
                         wire_format::Packet::Probe(magic) => {
                             if *magic == wire_format::PROBE_HOST {

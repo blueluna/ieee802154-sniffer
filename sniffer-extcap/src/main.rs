@@ -9,6 +9,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use byteorder::{ByteOrder, LittleEndian};
 use clap::Parser;
 use ieee802154_sniffer_wire_format as wire_format;
@@ -23,6 +26,7 @@ use r_extcap::{
     interface::{Dlt, Interface, Metadata},
     ExtcapStep,
 };
+use signal_hook;
 
 const NXP_VID: u16 = 0x0d28;
 const NXP_CMSIS_DAP_PID: u16 = 0x0204;
@@ -128,7 +132,7 @@ lazy_static! {
         .build();
 }
 
-fn main() {
+fn main() -> Result<(), Error> {
     let args = AppArgs::parse();
 
     if !args.extcap.capture {
@@ -230,7 +234,10 @@ fn main() {
 
             device.start_capture().unwrap();
 
-            loop {
+            let term = Arc::new(AtomicBool::new(false));
+            signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
+
+            while !term.load(Ordering::Relaxed) {
                 if let (Some(control_reader), Some(control_sender)) = &mut controls {
                     if let Some(control_packet) = control_reader.try_read_packet() {
                         handle_control_packet(&control_packet, control_sender).unwrap();
@@ -326,8 +333,11 @@ fn main() {
                     }
                 }
             }
+
+            device.stop_capture().unwrap();
         }
     };
+    Ok(())
 }
 
 fn handle_control_packet(

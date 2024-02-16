@@ -1,7 +1,6 @@
 use crate::Error;
 use ieee802154_sniffer_wire_format as wire_format;
 use std::time::Duration;
-use std::io::{BufReader, BufRead};
 
 pub(crate) struct DeviceSerial {
     port: Box<dyn serialport::SerialPort>,

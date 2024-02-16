@@ -86,7 +86,7 @@ async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>, mut tx: u
 
                     if capture_enable {
                         let payload = defmt::unwrap!(wire_format::Payload::from_slice(part));
-                        let frame = wire_format::Frame { payload, received_signal_strength_indicator: Some(i32::from(rssi) * 1_000), link_quality_index: Some(lqi) };
+                        let frame = wire_format::Frame { payload, channel: received.channel, received_signal_strength_indicator: Some(i32::from(rssi) * 1_000), link_quality_index: Some(lqi) };
                         let tx_packet = wire_format::Packet::CaptureFrame(frame);
                         let uart_data = defmt::unwrap!(tx_packet.encode(&mut utx_buffer));
                         defmt::unwrap!(embedded_io_async::Write::write_all(&mut tx, uart_data).await);
@@ -97,17 +97,20 @@ async fn radio_receive(mut radio: esp_ieee802154::Ieee802154<'static>, mut tx: u
                 match packet {
                     wire_format::Packet::Channel(channel) => {
                         configuration.channel = channel;
+                        defmt::info!("CTL: Set channel {}", configuration.channel);
+                        radio.set_config(configuration);
                     }
                     wire_format::Packet::Power(_) => (),
                     wire_format::Packet::Probe(_magic) => {
                     },
                     wire_format::Packet::CaptureStart => {
-                        radio.set_config(configuration);
+                        defmt::info!("CTL: Start capture {}", configuration.channel);
                         radio.start_receive();
                         capture_enable = true;
                     }
                     wire_format::Packet::CaptureStop => {
                         capture_enable = false;
+                        defmt::info!("CTL: Stop capture");
                     }
                     wire_format::Packet::NoOperation | wire_format::Packet::Reset | wire_format::Packet::CaptureFrame(_) => (),
                 }
