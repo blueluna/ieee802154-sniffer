@@ -1,17 +1,11 @@
 mod error;
 mod serial;
-
 use error::Error;
-
 use std::{
-    io::{stdout, Write},
     str::FromStr,
+    sync::{Arc, atomic::{AtomicBool, Ordering}},
     time::{SystemTime, UNIX_EPOCH},
 };
-
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
 use byteorder::{ByteOrder, LittleEndian};
 use clap::Parser;
 use ieee802154_sniffer_wire_format as wire_format;
@@ -22,7 +16,7 @@ use pcap_file::{
 };
 use r_extcap::{
     config::{ConfigOptionValue, SelectorConfig},
-    controls::{synchronous::ExtcapControlSender, ControlCommand, ControlPacket},
+    controls::ControlCommand,
     interface::{Dlt, Interface, Metadata},
     ExtcapStep,
 };
@@ -33,6 +27,7 @@ const NXP_CMSIS_DAP_PID: u16 = 0x0204;
 
 const SILICON_LABS_VID: u16 = 0x10c4;
 const SILICON_LABS_UART_PID: u16 = 0xea60;
+
 #[derive(Debug, Parser)]
 pub struct AppArgs {
     #[command(flatten)]
@@ -58,15 +53,14 @@ lazy_static! {
         dlt: DLT.clone(),
     };
     static ref CONFIG_CHANNEL: SelectorConfig = SelectorConfig::builder()
-        .config_number(3)
+        .config_number(0)
         .call("channel")
         .display("Channel")
-        .tooltip("Channel Selector")
+        .tooltip("IEEE 802.15.4 channel")
         .default_options([
             ConfigOptionValue::builder()
                 .value("11")
                 .display("11")
-                .default(true)
                 .build(),
             ConfigOptionValue::builder()
                 .value("12")
@@ -123,6 +117,7 @@ lazy_static! {
             ConfigOptionValue::builder()
                 .value("25")
                 .display("25")
+                .default(true)
                 .build(),
             ConfigOptionValue::builder()
                 .value("26")
@@ -197,9 +192,7 @@ fn main() -> Result<(), Error> {
                 .unwrap();
         }
         ExtcapStep::Config(config_step) => config_step.list_configs(&[&*CONFIG_CHANNEL]),
-        ExtcapStep::ReloadConfig(_reload_config_step) => {
-            panic!("Unsupported operation");
-        }
+        ExtcapStep::ReloadConfig(_reload_config_step) => {}
         ExtcapStep::Capture(capture_step) => {
             let mut controls = (
                 capture_step.spawn_channel_control_reader(),
@@ -218,34 +211,35 @@ fn main() -> Result<(), Error> {
             };
             let mut pcap_writer = PcapWriter::with_header(capture_step.fifo, pcap_header).unwrap();
 
-            let channel = u8::from_str(&args.channel).unwrap();
-
-            let serialport = if capture_step.interface.is_empty() {
-                let ports = serialport::available_ports().unwrap();
-                if ports.len() != 1 {
-                    panic!("There are more or less than one serial ports. Don't know which one to use.");
+            let channel = match u8::from_str(&args.channel) {
+                Ok(channel) => channel,
+                Err(_) => {
+                    eprintln!("Failed to parse channel");
+                    std::process::exit(1);
                 }
-                ports[0].port_name.clone()
-            } else {
-                capture_step.interface.to_string()
             };
 
-            let mut device =
-                serial::DeviceSerial::open(&serialport, std::time::Duration::from_millis(1))
-                    .expect("Failed to open port");
+            if capture_step.interface.is_empty() {
+                eprintln!("No interface specified");
+                std::process::exit(1);
+            }
 
-            device.set_channel(channel).unwrap();
+            let mut device = serial::DeviceSerial::open(
+                &capture_step.interface,
+                std::time::Duration::from_millis(1),
+            )
+            .expect("Failed to open serial port");
 
-            device.start_capture().unwrap();
+            device.set_channel(channel).expect("Failed to set channel");
+
+            device.start_capture().expect("Failed to start capture");
 
             let term = Arc::new(AtomicBool::new(false));
             signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
 
             while !term.load(Ordering::Relaxed) {
-                if let (Some(control_reader), Some(control_sender)) = &mut controls {
-                    if let Some(control_packet) = control_reader.try_read_packet() {
-                        handle_control_packet(&control_packet, control_sender).unwrap();
-                    }
+                if let (Some(control_reader), Some(_control_sender)) = &mut controls {
+                    if let Some(_control_packet) = control_reader.try_read_packet() {}
                 }
 
                 if let Ok(packet) = device.receive() {
@@ -333,21 +327,12 @@ fn main() -> Result<(), Error> {
                             }
                             _ => (),
                         }
-                        stdout().flush().unwrap();
                     }
                 }
             }
 
-            device.stop_capture().unwrap();
+            device.stop_capture().expect("Failed to stop capture");
         }
     };
-    Ok(())
-}
-
-fn handle_control_packet(
-    _control_packet: &ControlPacket<'_>,
-    _control_sender: &mut ExtcapControlSender,
-) -> Result<(), ()> {
-    // currently nothing to do here
     Ok(())
 }
