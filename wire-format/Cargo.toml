@@ -9,7 +9,7 @@ license = "MIT"
 postcard = { workspace = true }
 serde = { workspace = true }
 heapless = { workspace = true }
-defmt = {  version = "0.3", optional = true }
+defmt = {  version = "1.0", optional = true }
 
 [features]
 std = ["postcard/alloc"]

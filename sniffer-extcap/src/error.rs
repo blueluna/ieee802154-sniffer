@@ -1,6 +1,7 @@
 use ieee802154_sniffer_wire_format as wire_format;
 use std::convert::From;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum Error {
     IoError(std::io::Error),

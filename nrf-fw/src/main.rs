@@ -14,13 +14,13 @@ use ieee802154_sniffer_wire_format as wire_format;
 
 bind_interrupts!(struct Irqs {
     RADIO => radio::InterruptHandler<peripherals::RADIO>;
-    UARTE0_UART0 => uarte::InterruptHandler<peripherals::UARTE0>;
+    UARTE0 => uarte::InterruptHandler<peripherals::UARTE0>;
 });
 
 static CHANNEL: Channel<ThreadModeRawMutex, wire_format::Packet, 4> = Channel::new();
 
 #[embassy_executor::task]
-async fn uart_reader(mut rx: uarte::UarteRx<'static, peripherals::UARTE0>) {
+async fn uart_reader(mut rx: uarte::UarteRx<'static>) {
 
     let mut buf = [0; 512];
     let mut offset = 0;
@@ -61,7 +61,7 @@ async fn main(spawner: Spawner) {
     uart_config.parity = uarte::Parity::EXCLUDED;
     uart_config.baudrate = uarte::Baudrate::BAUD250000;
 
-    let uart = uarte::Uarte::new(p.UARTE0, Irqs, p.P1_08, p.P0_06, uart_config);
+    let uart = uarte::Uarte::new(p.UARTE0, p.P1_08, p.P0_06, Irqs, uart_config);
     let (mut tx, rx) = uart.split();
 
     defmt::unwrap!(spawner.spawn(uart_reader(rx)));
@@ -78,7 +78,13 @@ async fn main(spawner: Spawner) {
                     match result {
                         Ok(()) => {
                             if capture_enable {
-                                let payload = defmt::unwrap!(wire_format::Payload::from_slice(&rx_packet));
+                                let payload = match wire_format::Payload::from_slice(&rx_packet) {
+                                    Ok(payload) => payload,
+                                    Err(_) => {
+                                        defmt::error!("ZRX: Failed to decode payload");
+                                        continue;
+                                    }
+                                };
                                 let frame = wire_format::Frame { payload, channel: configured_channel, received_signal_strength_indicator: None, link_quality_index: Some(rx_packet.lqi()) };
                                 let tx_packet = wire_format::Packet::CaptureFrame(frame);
                                 let uart_data = defmt::unwrap!(tx_packet.encode(&mut utx_buffer));

@@ -4,6 +4,6 @@ exclude = ["esp-fw", "nrf-fw"]
 resolver = "2"
 
 [workspace.dependencies]
-postcard = { version = "1.0" }
+postcard = { version = "1.1" }
 serde = { version = "1.0", default-features = false }
-heapless = { version = "0.8.0", features = ["serde"] }
+heapless = { version = "0.9", features = ["serde"] }
